@@ -1,0 +1,54 @@
+"""
+Assumptions:
+- Run from the repository root; this script creates/overwrites files in-place.
+"""
+
+from __future__ import annotations
+
+import os
+from typing import Dict
+
+
+def ensure_parent_directory(file_path: str) -> None:
+    parent_dir = os.path.dirname(file_path)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+
+
+def write_file(path: str, content: str) -> None:
+    ensure_parent_directory(path)
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(content)
+
+
+def main() -> None:
+    files: Dict[str, str] = {
+        # Backend
+        "backend/app/__init__.py": """import os\nfrom flask import Flask, jsonify\nfrom flask_cors import CORS\nfrom dotenv import load_dotenv\n\n\ndef create_app() -> Flask:\n    \"\"\"Application factory creating the Flask app with minimal setup.\"\"\"\n    load_dotenv()\n\n    app = Flask(__name__)\n    app.config[\"JSON_SORT_KEYS\"] = False\n\n    # Open CORS for simplicity during local development\n    CORS(app, resources={r\"/*\": {\"origins\": \"*\"}})\n\n    # Register API blueprint\n    from .routes import api_bp\n\n    app.register_blueprint(api_bp, url_prefix=\"/api\")\n\n    @app.get(\"/health\")\n    def health_root():\n        return jsonify({\"status\": \"ok\", \"service\": \"flask\"})\n\n    return app\n\n\n""",
+        "backend/app/routes.py": """from flask import Blueprint, jsonify\nfrom .db import ping_database\n\n\napi_bp = Blueprint(\"api\", __name__)\n\n\n@api_bp.get(\"/health\")\ndef api_health():\n    return jsonify({\"status\": \"ok\", \"service\": \"api\"})\n\n\n@api_bp.get(\"/db/ping\")\ndef db_ping():\n    ok, error = ping_database()\n    return jsonify({\n        \"status\": \"ok\" if ok else \"error\",\n        \"error\": error,\n    })\n\n\n""",
+        "backend/app/db.py": """import os\nfrom typing import Tuple, Optional\n\nimport mysql.connector\nfrom mysql.connector import Error\n\n\ndef _get_db_config() -> dict:\n    return {\n        \"host\": os.getenv(\"DB_HOST\", \"localhost\"),\n        \"port\": int(os.getenv(\"DB_PORT\", \"3306\")),\n        \"user\": os.getenv(\"DB_USER\", \"root\"),\n        \"password\": os.getenv(\"DB_PASSWORD\", \"\"),\n        \"database\": os.getenv(\"DB_NAME\", \"mysql\"),\n    }\n\n\ndef get_connection() -> mysql.connector.connection.MySQLConnection:\n    cfg = _get_db_config()\n    return mysql.connector.connect(\n        host=cfg[\"host\"],\n        port=cfg[\"port\"],\n        user=cfg[\"user\"],\n        password=cfg[\"password\"],\n        database=cfg[\"database\"],\n        connection_timeout=3,\n    )\n\n\ndef ping_database() -> Tuple[bool, Optional[str]]:\n    \"\"\"Try to run a trivial query against MySQL using mysql-connector-python.\n    Returns (ok, error_message_if_any).\n    \"\"\"\n    try:\n        conn = get_connection()\n    except Error as exc:\n        return False, str(exc)\n    except Exception as exc:\n        return False, str(exc)\n\n    try:\n        cur = conn.cursor()\n        cur.execute(\"SELECT 1\")\n        cur.fetchone()\n        cur.close()\n        return True, None\n    except Error as exc:\n        return False, str(exc)\n    except Exception as exc:\n        return False, str(exc)\n    finally:\n        try:\n            conn.close()\n        except Exception:\n            pass\n\n\n""",
+        "backend/run.py": """import os\n\nfrom app import create_app\n\n\napp = create_app()\n\n\nif __name__ == \"__main__\":\n    host = os.getenv(\"FLASK_RUN_HOST\", \"127.0.0.1\")\n    port = int(os.getenv(\"FLASK_RUN_PORT\", \"5000\"))\n    debug = os.getenv(\"FLASK_DEBUG\", \"1\") == \"1\"\n    app.run(host=host, port=port, debug=debug)\n\n\n""",
+        "backend/requirements.txt": """Flask==3.0.3\nFlask-Cors==4.0.0\npython-dotenv==1.0.1\nmysql-connector-python==9.0.0\n""",
+        # Frontend
+        "frontend/index.html": """<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>CS 364 Project</title>\n  <link rel=\"stylesheet\" href=\"assets/css/style.css\">\n\n</head>\n<body>\n    <script src=\"assets/js/script.js\" defer></script>\n\n\n    \n  \n</body>\n</html>\n\n""",
+        "frontend/assets/css/style.css": """/* Minimal, device-friendly base styles */\n\n/* Box sizing reset */\n*,\n*::before,\n*::after {\n  box-sizing: border-box;\n}\n\n/* Basic sensible defaults */\nhtml {\n  font-family: system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial;\n  font-size: 16px; /* base size; scales with browser settings */\n  -webkit-text-size-adjust: 100%;\n  line-height: 1.45;\n}\n\nbody {\n  margin: 0;\n  padding: 1rem;\n  background-color: #ffffff;\n  color: #111;\n  min-height: 100vh;\n  display: block;\n}\n\n/* Make images responsive if later added */\nimg,\npicture,\nvideo {\n  max-width: 100%;\n  height: auto;\n  display: block;\n}\n\n/* Utility container that stays readable on any device */\n.container {\n  max-width:  ninetych;\n  margin-left: auto;\n  margin-right: auto;\n  padding-left: 1rem;\n  padding-right: 1rem;\n}\n\n\n""",
+        "frontend/assets/js/script.js": """(function () {\n    'use strict';\n  \n    // DOM ready\n    document.addEventListener('DOMContentLoaded', function () {\n      console.log('script.js loaded — DOM ready');\n\n      const healthEl = document.createElement('div');\n      healthEl.id = 'health-status';\n      healthEl.textContent = 'Checking backend health...';\n      document.body.appendChild(healthEl);\n\n      fetch('http://127.0.0.1:5000/health')\n        .then(function (r) { return r.json(); })\n        .then(function (data) {\n          healthEl.textContent = 'Backend: ' + data.status;\n        })\n        .catch(function (err) {\n          healthEl.textContent = 'Backend: unreachable';\n          console.error(err);\n        });\n    });\n  \n})();\n\n\n""",
+        # Project TODO
+        "TODO.md": """## Project TODO\n\n- **Environment**\n  - [ ] Create `backend/.env` with:\n    - `FLASK_RUN_HOST=127.0.0.1`\n    - `FLASK_RUN_PORT=5000`\n    - `FLASK_DEBUG=1`\n    - `DB_HOST=localhost`\n    - `DB_PORT=3306`\n    - `DB_USER=root`\n    - `DB_PASSWORD=yourpassword`\n    - `DB_NAME=yourdatabase`\n\n- **Install & Run (backend)**\n  - [ ] `cd backend`\n  - [ ] Create venv: `python -m venv .venv`\n  - [ ] Activate venv: `.venv\\\\Scripts\\\\activate` (Windows)\n  - [ ] `pip install -r requirements.txt`\n  - [ ] `python run.py`\n\n- **Verify API**\n  - [ ] Health: open `http://127.0.0.1:5000/health` → expect `{ \"status\": \"ok\" }`\n  - [ ] API Health: open `http://127.0.0.1:5000/api/health` → expect `{ \"status\": \"ok\" }`\n  - [ ] DB Ping: open `http://127.0.0.1:5000/api/db/ping`\n    - Expect `{ \"status\": \"ok\" }` if credentials are valid\n    - Otherwise `{ \"status\": \"error\", \"error\": \"...\" }`\n\n- **Frontend**\n  - [ ] Open `frontend/index.html` in browser\n  - [ ] Confirm the page shows `Backend: ok`\n\n- **MySQL Checklist**\n  - [ ] Ensure MySQL server is running and accessible\n  - [ ] Confirm user/password and DB exist\n  - [ ] If needed, update `.env` with correct credentials\n\n- **Next (optional, later)**\n  - [ ] Add CRUD endpoints with MySQL queries\n  - [ ] Add simple UI form that calls new endpoints\n\n\n""",
+    }
+
+    for path, content in files.items():
+        write_file(path, content)
+
+    # Delete this script at the end
+    try:
+        os.remove(os.path.abspath(__file__))
+    except Exception:
+        # Non-fatal if deletion fails
+        pass
+
+
+if __name__ == "__main__":
+    main()
+
+
