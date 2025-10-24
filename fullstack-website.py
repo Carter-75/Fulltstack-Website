@@ -26,7 +26,7 @@ def write_file(path: str, content: str) -> None:
 def main() -> None:
     files: Dict[str, str] = {
         # Backend
-        "backend/app/__init__.py": """import os
+        "backend/app/__init__.py": '''import os
 from flask import Flask, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -52,8 +52,8 @@ def create_app() -> Flask:
         return jsonify({"status": "ok"})
 
     return app
-""",
-        "backend/app/routes.py": """from flask import Blueprint, jsonify
+''',
+        "backend/app/routes.py": '''from flask import Blueprint, jsonify
 from .db import ping_database
 import logging
 
@@ -96,8 +96,8 @@ def db_ping():
 #     if not ok:
 #         return jsonify({"status": "error", "error": error}), 500
 #     return jsonify({"status": "ok"})
-""",
-        "backend/app/db.py": """import os
+''',
+        "backend/app/db.py": '''import os
 from typing import Tuple, Optional
 
 
@@ -204,8 +204,8 @@ def ping_database() -> Tuple[bool, Optional[str]]:
 
 
 
-""",
-        "backend/run.py": """import os
+''',
+        "backend/run.py": '''import os
 
 from app import create_app
 
@@ -220,46 +220,46 @@ if __name__ == "__main__":
     app.run(host=host, port=port, debug=debug)
 
 
-""",
-        "backend/requirements.txt": """Flask==3.0.3
+''',
+        "backend/requirements.txt": '''Flask==3.0.3
 Flask-Cors==4.0.0
 python-dotenv==1.0.1
 mysql-connector-python==9.0.0
 waitress==3.0.2
-""",
+''',
         # Frontend (Vite + React)
-        "frontend/index.html": """<!doctype html>
-<html lang=\"en\">
+        "frontend/index.html": '''<!doctype html>
+<html lang="en">
 <head>
-  <meta charset=\"utf-8\">
-  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CS-364-Project</title>
-  <link rel=\"stylesheet\" href=\"assets/css/style.css\">
+  <link rel="stylesheet" href="assets/css/style.css">
   
 </head>
 <body>
-    <div class=\"container\">
+    <div class="container">
       <h1>CS-364-Project</h1>
-      <div id=\"root\"></div>
+      <div id="root"></div>
       <!--
         Example form (commented):
-        <form id=\"example-form\">
-          <label for=\"example-name\">Name</label>
-          <input id=\"example-name\" name=\"name\" type=\"text\" placeholder=\"Your name\" required>
+        <form id="example-form">
+          <label for="example-name">Name</label>
+          <input id="example-name" name="name" type="text" placeholder="Your name" required>
 
-          <label for=\"example-email\">Email</label>
-          <input id=\"example-email\" name=\"email\" type=\"email\" placeholder=\"you@example.com\" required>
+          <label for="example-email">Email</label>
+          <input id="example-email" name="email" type="email" placeholder="you@example.com" required>
 
-          <button type=\"submit\">Submit</button>
+          <button type="submit">Submit</button>
         </form>
-        <div id=\"example-result\" aria-live=\"polite\"></div>
+        <div id="example-result" aria-live="polite"></div>
 
         This pairs with the commented JS in assets/js/script.js
         and the example backend route in backend/app/routes.py.
       -->
       
     
-    <script type=\"module\" src=\"/src/main.jsx\"></script>
+    <script type="module" src="/src/main.jsx"></script>
 
 
     
@@ -267,8 +267,8 @@ waitress==3.0.2
 </body>
 </html>
 
-""",
-        "frontend/src/App.jsx": """import { useEffect, useState } from 'react';
+''',
+        "frontend/src/App.jsx": '''import { useEffect, useState } from 'react';
 
 export default function App() {
   const [apiStatus, setApiStatus] = useState('checking...');
@@ -297,8 +297,8 @@ export default function App() {
   );
 }
 
-""",
-        "frontend/src/main.jsx": """import React from 'react';
+''',
+        "frontend/src/main.jsx": '''import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 
@@ -307,8 +307,8 @@ const root = createRoot(container);
 root.render(<App />);
 
 
-""",
-        "frontend/vite.config.js": """import { defineConfig } from 'vite';
+''',
+        "frontend/vite.config.js": '''import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
@@ -325,30 +325,30 @@ export default defineConfig({
 });
 
 
-""",
-        "frontend/package.json": """{
-  \"name\": \"cs-364-frontend\",
-  \"private\": true,
-  \"version\": \"0.0.1\",
-  \"type\": \"module\",
-  \"scripts\": {
-    \"dev\": \"vite\",
-    \"build\": \"vite build\",
-    \"preview\": \"vite preview --port 5173\"
+''',
+        "frontend/package.json": '''{
+  "name": "cs-364-frontend",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 5173"
   },
-  \"dependencies\": {
-    \"react\": \"^18.3.1\",
-    \"react-dom\": \"^18.3.1\"
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
-  \"devDependencies\": {
-    \"@vitejs/plugin-react\": \"^4.3.1\",
-    \"vite\": \"^5.4.8\"
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.8"
   }
 }
 
 
-""",
-        "frontend/assets/css/style.css": """/* Minimal, device-friendly base styles */
+''',
+        "frontend/assets/css/style.css": '''/* Minimal, device-friendly base styles */
 
 /* Box sizing reset */
 *,
@@ -359,7 +359,7 @@ export default defineConfig({
 
 /* Basic sensible defaults */
 html {
-  font-family: system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
   font-size: 16px; /* base size; scales with browser settings */
   -webkit-text-size-adjust: 100%;
   line-height: 1.45;
@@ -393,9 +393,9 @@ video {
 }
 
 
-""",
+''',
         # Repo files
-        ".gitignore": """# Python virtual environment
+        ".gitignore": '''# Python virtual environment
 .venv/
 venv/
 
@@ -405,9 +405,9 @@ __pycache__/
 
 # Environment variables
 *.env
-""",
+''',
         # Project TODO (updated)
-        "TODO.md": """## Project TODO
+        "TODO.md": '''## Project TODO
 
 Environment
 - [ ] Create `backend/.env` with:
@@ -419,7 +419,7 @@ Environment
   - DB_PORT=`3306`
   - DB_USER=`<your-db-user>`
   - DB_PASSWORD=`<your-db-password>`
-  - DB_NAME=`<your-database>`
+  - DB NAME=`<your-database>`
   - FRONTEND_ORIGIN=`<your-frontend-url>`  # e.g., `http://127.0.0.1:5500` if using Live Server, or `*` for quick local tests
 
 - Install & Run (backend)
@@ -451,20 +451,36 @@ Notes
 - Vite dev server proxies `/api/*` to Flask at `http://127.0.0.1:5000` per `frontend/vite.config.js`. Keep Flask running while using `npm run dev`.
 
 
-""",
+''',
         # README (updated)
-        "README.md": """# Fullstack Website (Flask + MySQL + React via Vite)
+        "README.md": '''# Fullstack Website (Flask + MySQL + React via Vite)
 
 This project is a minimal full‑stack setup:
 - Backend: Python Flask API with MySQL Connector
 - Frontend: React (Vite dev server + proxy to Flask)
 
-## Prerequisites
+Prerequisites
 - Python 3.10+
 - Node.js 18+
 - MySQL server
 
-## Backend (Flask)
+Quick start
+```
+# Backend
+cd backend
+python -m venv .venv
+.venv\Scripts\activate   # Windows
+pip install -r requirements.txt
+python run.py
+
+# Frontend (in a separate terminal)
+cd frontend
+npm install
+npm run dev
+```
+Open the printed URL (default `http://127.0.0.1:5173/`). Keep the Flask server running at the same time.
+
+Backend (Flask)
 1) Create and populate `backend/.env`:
 ```
 FLASK_RUN_HOST=0.0.0.0
@@ -484,7 +500,7 @@ FRONTEND_ORIGIN=http://127.0.0.1:5173
 ```
 cd backend
 python -m venv .venv
-.venv\\Scripts\\activate   # Windows
+.venv\Scripts\activate   # Windows
 pip install -r requirements.txt
 python run.py
 # or: waitress-serve --listen=0.0.0.0:5000 run:app
@@ -495,7 +511,7 @@ python run.py
 - `GET http://127.0.0.1:5000/api/health` → `{ "status": "ok" }`
 - `GET http://127.0.0.1:5000/api/db/ping` → `{ "status": "ok" }` if DB creds are valid
 
-## Frontend (Vite + React)
+Frontend (Vite + React)
 1) Install and start dev server:
 ```
 cd frontend
@@ -507,7 +523,7 @@ npm run dev
 
 Vite is configured to proxy `/api/*` to Flask at `http://127.0.0.1:5000` in `frontend/vite.config.js`.
 
-## Folder structure
+Folder structure
 ```
 backend/
   app/
@@ -529,10 +545,10 @@ frontend/
 TODO.md                # setup checklist
 ```
 
-## Notes
+Notes
 - For production, build the frontend (`npm run build`) and serve the static files with a web server. Adjust CORS and deployment according to your environment.
 - The backend uses environment variables (via `python-dotenv` in dev) to keep secrets out of source control.
-""",
+''',
     }
 
     for path, content in files.items():
