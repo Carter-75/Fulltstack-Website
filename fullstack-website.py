@@ -26,19 +26,513 @@ def write_file(path: str, content: str) -> None:
 def main() -> None:
     files: Dict[str, str] = {
         # Backend
-        "backend/app/__init__.py": """import os\nfrom flask import Flask, jsonify\nfrom flask_cors import CORS\nfrom dotenv import load_dotenv\n\n\ndef create_app() -> Flask:\n    \"\"\"Application factory creating the Flask app with minimal setup.\"\"\"\n    load_dotenv()\n\n    app = Flask(__name__)\n    app.config[\"JSON_SORT_KEYS\"] = False\n\n    # Restrict CORS in production; allow all in local dev\n    frontend_origin = os.getenv(\"FRONTEND_ORIGIN\", \"*\")\n    CORS(app, resources={r\"/*\": {\"origins\": frontend_origin}})\n\n    # Register API blueprint\n    from .routes import api_bp\n    app.register_blueprint(api_bp, url_prefix=\"/api\")\n\n    @app.get(\"/\")\n    def root():\n        return jsonify({\"status\": \"ok\"})\n\n    return app\n""",
-        "backend/app/routes.py": """from flask import Blueprint, jsonify\nfrom .db import ping_database\nimport logging\n\napi_bp = Blueprint(\"api\", __name__)\n\n# Configure a logger for error reporting\nlogger = logging.getLogger(__name__)\n\n@api_bp.get(\"/health\")\ndef api_health():\n    \"\"\"Lightweight health endpoint for API layer monitoring.\"\"\"\n    return jsonify({\"status\": \"ok\", \"service\": \"api\"})\n\n@api_bp.get(\"/db/ping\")\ndef db_ping():\n    \"\"\"Verifies DB connectivity/credentials with a trivial SELECT.\"\"\"\n    ok, error = ping_database()\n    if not ok and error:\n        # Log the detailed error internally, avoid exposing sensitive info to client\n        logger.error(\"DB ping failed: %s\", error)\n    return jsonify({\n        \"status\": \"ok\" if ok else \"error\",\n        \"error\": None if ok else \"Database connection failed\",\n    })\n\n# Example insert route (commented):\n# from flask import request\n# from .db import insert_name\n#\n# @api_bp.post(\"/names\")\n# def create_name():\n#     \"\"\"Minimal insert endpoint; expects JSON body { \"name\": \"...\", \"email\": \"...\" }.\"\"\"\n#     data = request.get_json(silent=True) or {}\n#     name = (data.get(\"name\") or \"\").strip()\n#     email = (data.get(\"email\") or \"\").strip()\n#     if not name or not email:\n#         return jsonify({\"status\": \"error\", \"error\": \"name and email are required\"}), 400\n#\n#     ok, error = insert_name(name)\n#     if not ok:\n#         return jsonify({\"status\": \"error\", \"error\": error}), 500\n#     return jsonify({\"status\": \"ok\"})\n""",
-        "backend/app/db.py": """import os\nfrom typing import Tuple, Optional\n\n\nimport mysql.connector\nfrom mysql.connector import Error\n\n\ndef _get_db_config() -> dict:\n    \"\"\"Load DB configuration from environment variables.\n\n    Using env vars (with python-dotenv during local dev) keeps secrets out of\n    source control and allows configuration per environment.\n    \"\"\"\n    return {\n        \"host\": os.getenv(\"DB_HOST\", \"localhost\"),\n        \"port\": int(os.getenv(\"DB_PORT\", \"3306\")),\n        \"user\": os.getenv(\"DB_USER\", \"root\"),\n        \"password\": os.getenv(\"DB_PASSWORD\", \"\"),\n        \"database\": os.getenv(\"DB_NAME\", \"mysql\"),\n    }\n\n\ndef get_connection() -> mysql.connector.connection.MySQLConnection:\n    \"\"\"Create and return a new MySQL connection using the above config.\"\"\"\n    cfg = _get_db_config()\n    return mysql.connector.connect(\n        host=cfg[\"host\"],\n        port=cfg[\"port\"],\n        user=cfg[\"user\"],\n        password=cfg[\"password\"],\n        database=cfg[\"database\"],\n        connection_timeout=3,\n    )\n\n\ndef ping_database() -> Tuple[bool, Optional[str]]:\n    \"\"\"Execute a trivial query to confirm connectivity and credentials.\n\n    Returns (ok, error_message_if_any).\n    \"\"\"\n    try:\n        conn = get_connection()\n    except Error as exc:\n        return False, str(exc)\n    except Exception as exc:\n        return False, str(exc)\n\n    try:\n        cur = conn.cursor()\n        cur.execute(\"SELECT 1\")\n        cur.fetchone()\n        cur.close()\n        return True, None\n    except Error as exc:\n        return False, str(exc)\n    except Exception as exc:\n        return False, str(exc)\n    finally:\n        try:\n            conn.close()\n        except Exception:\n            pass\n\n# Example helpers (commented):\n# def ensure_table_exists() -> None:\n#     \"\"\"Create the `names` table if it does not already exist.\n#     Example includes an email column to store a second field.\n#     \"\"\"\n#     conn = get_connection()\n#     try:\n#         cur = conn.cursor()\n#         cur.execute(\n#             \"\"\"\n#             CREATE TABLE IF NOT EXISTS names (\n#                 id INT PRIMARY KEY AUTO_INCREMENT,\n#                 name VARCHAR(255) NOT NULL,\n#                 email VARCHAR(255) NOT NULL,\n#                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n#             )\n#             \"\"\"\n#         )\n#         conn.commit()\n#         cur.close()\n#     finally:\n#         conn.close()\n#\n# def insert_name(name: str, email: str) -> Tuple[bool, Optional[str]]:\n#     \"\"\"Insert a single row into `names` after ensuring the table exists.\n#     This example writes both name and email.\n#     \"\"\"\n#     try:\n#         ensure_table_exists()\n#         conn = get_connection()\n#         cur = conn.cursor()\n#         cur.execute(\"INSERT INTO names (name, email) VALUES (%s, %s)\", (name, email))\n#         conn.commit()\n#         cur.close()\n#         conn.close()\n#         return True, None\n#     except Error as exc:\n#         return False, str(exc)\n#     except Exception as exc:\n#         return False, str(exc)\n\n\n\n""",
-        "backend/run.py": """import os\n\nfrom app import create_app\n\n\napp = create_app()\n\n\nif __name__ == \"__main__\":\n    host = os.getenv(\"FLASK_RUN_HOST\", \"127.0.0.1\")\n    port = int(os.getenv(\"FLASK_RUN_PORT\", \"5000\"))\n    debug = os.getenv(\"FLASK_DEBUG\", \"1\") == \"1\"\n    app.run(host=host, port=port, debug=debug)\n\n\n""",
-        "backend/requirements.txt": """Flask==3.0.3\nFlask-Cors==4.0.0\npython-dotenv==1.0.1\nmysql-connector-python==9.0.0\nwaitress==3.0.2\n""",
-        # Frontend
-        "frontend/index.html": """<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>Title</title>\n  <link rel=\"stylesheet\" href=\"assets/css/style.css\">\n\n</head>\n<body>\n    <div class=\"container\">\n      <h1>Header</h1>\n      <!--\n        Example form (commented):\n        <form id=\"example-form\">\n          <label for=\"example-name\">Name</label>\n          <input id=\"example-name\" name=\"name\" type=\"text\" placeholder=\"Your name\" required>\n\n          <label for=\"example-email\">Email</label>\n          <input id=\"example-email\" name=\"email\" type=\"email\" placeholder=\"you@example.com\" required>\n\n          <button type=\"submit\">Submit</button>\n        </form>\n        <div id=\"example-result\" aria-live=\"polite\"></div>\n\n        This pairs with the commented JS in assets/js/script.js\n        and the example backend route in backend/app/routes.py.\n      -->\n      \n    \n    <script src=\"assets/js/script.js\" defer></script>\n\n\n    \n  \n</body>\n</html>\n\n""",
-        "frontend/assets/css/style.css": """/* Minimal, device-friendly base styles */\n\n/* Box sizing reset */\n*,\n*::before,\n*::after {\n  box-sizing: border-box;\n}\n\n/* Basic sensible defaults */\nhtml {\n  font-family: system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial;\n  font-size: 16px; /* base size; scales with browser settings */\n  -webkit-text-size-adjust: 100%;\n  line-height: 1.45;\n}\n\nbody {\n  margin: 0;\n  padding: 1rem;\n  background-color: #ffffff;\n  color: #111;\n  min-height: 100vh;\n  display: block;\n}\n\n/* Make images responsive if later added */\nimg,\npicture,\nvideo {\n  max-width: 100%;\n  height: auto;\n  display: block;\n}\n\n/* Utility container that stays readable on any device */\n.container {\n  max-width:  ninetych;\n  margin-left: auto;\n  margin-right: auto;\n  padding-left: 1rem;\n  padding-right: 1rem;\n}\n\n\n""",
-        "frontend/assets/js/script.js": """(function () {\n    'use strict';\n  \n    // DOM ready\n    document.addEventListener('DOMContentLoaded', function () {\n      console.log('script.js loaded — DOM ready');\n\n      // Render a tiny status area showing backend health.\n      /*const healthEl = document.createElement('div');\n      healthEl.id = 'health-status';\n      healthEl.textContent = 'Checking backend health...';\n      document.body.appendChild(healthEl);\n\n      fetch('http://127.0.0.1:5000/health')\n        .then(function (r) { return r.json(); })\n        .then(function (data) {\n          healthEl.textContent = 'Backend: ' + data.status;\n        })\n        .catch(function (err) {\n          healthEl.textContent = 'Backend: unreachable';\n          console.error(err);\n        });*/\n\n      // Example submit handler (commented):\n      // const form = document.getElementById('example-form');\n      // const nameInput = document.getElementById('example-name');\n      // const emailInput = document.getElementById('example-email');\n      // const result = document.getElementById('example-result');\n      // if (form && nameInput && emailInput && result) {\n      //   form.addEventListener('submit', function (e) {\n      //     e.preventDefault();\n      //     const name = (nameInput.value || '').trim();\n      //     const email = (emailInput.value || '').trim();\n      //     if (!name || !email) {\n      //       result.textContent = 'Please enter a name and email.';\n      //       return;\n      //     }\n      //     result.textContent = 'Submitting...';\n      //     fetch('http://127.0.0.1:5000/api/names', {\n      //       method: 'POST',\n      //       headers: { 'Content-Type': 'application/json' },\n      //       body: JSON.stringify({ name, email })\n      //     })\n      //       .then(function (r) { return r.json(); })\n      //       .then(function (data) {\n      //         if (data.status === 'ok') {\n      //           result.textContent = 'Saved!';\n      //           nameInput.value = '';\n      //           emailInput.value = '';\n      //         } else {\n      //           result.textContent = 'Error: ' + (data.error || 'unknown');\n      //         }\n      //       })\n      //       .catch(function (err) {\n      //         console.error(err);\n      //         result.textContent = 'Network error';\n      //       });\n      //   });\n      // }\n    });\n  \n})();\n\n\n\n""",
+        "backend/app/__init__.py": """import os
+from flask import Flask, jsonify
+from flask_cors import CORS
+from dotenv import load_dotenv
+
+
+def create_app() -> Flask:
+    """Application factory creating the Flask app with minimal setup."""
+    load_dotenv()
+
+    app = Flask(__name__)
+    app.config["JSON_SORT_KEYS"] = False
+
+    # Restrict CORS in production; allow all in local dev
+    frontend_origin = os.getenv("FRONTEND_ORIGIN", "*")
+    CORS(app, resources={r"/*": {"origins": frontend_origin}})
+
+    # Register API blueprint
+    from .routes import api_bp
+    app.register_blueprint(api_bp, url_prefix="/api")
+
+    @app.get("/")
+    def root():
+        return jsonify({"status": "ok"})
+
+    return app
+""",
+        "backend/app/routes.py": """from flask import Blueprint, jsonify
+from .db import ping_database
+import logging
+
+api_bp = Blueprint("api", __name__)
+
+# Configure a logger for error reporting
+logger = logging.getLogger(__name__)
+
+@api_bp.get("/health")
+def api_health():
+    """Lightweight health endpoint for API layer monitoring."""
+    return jsonify({"status": "ok", "service": "api"})
+
+@api_bp.get("/db/ping")
+def db_ping():
+    """Verifies DB connectivity/credentials with a trivial SELECT."""
+    ok, error = ping_database()
+    if not ok and error:
+        # Log the detailed error internally, avoid exposing sensitive info to client
+        logger.error("DB ping failed: %s", error)
+    return jsonify({
+        "status": "ok" if ok else "error",
+        "error": None if ok else "Database connection failed",
+    })
+
+# Example insert route (commented):
+# from flask import request
+# from .db import insert_name
+#
+# @api_bp.post("/names")
+# def create_name():
+#     """Minimal insert endpoint; expects JSON body { "name": "...", "email": "..." }."""
+#     data = request.get_json(silent=True) or {}
+#     name = (data.get("name") or "").strip()
+#     email = (data.get("email") or "").strip()
+#     if not name or not email:
+#         return jsonify({"status": "error", "error": "name and email are required"}), 400
+#
+#     ok, error = insert_name(name)
+#     if not ok:
+#         return jsonify({"status": "error", "error": error}), 500
+#     return jsonify({"status": "ok"})
+""",
+        "backend/app/db.py": """import os
+from typing import Tuple, Optional
+
+
+import mysql.connector
+from mysql.connector import Error
+
+
+def _get_db_config() -> dict:
+    """Load DB configuration from environment variables.
+
+    Using env vars (with python-dotenv during local dev) keeps secrets out of
+    source control and allows configuration per environment.
+    """
+    return {
+        "host": os.getenv("DB_HOST", "localhost"),
+        "port": int(os.getenv("DB_PORT", "3306")),
+        "user": os.getenv("DB_USER", "root"),
+        "password": os.getenv("DB_PASSWORD", ""),
+        "database": os.getenv("DB_NAME", "mysql"),
+    }
+
+
+def get_connection() -> mysql.connector.connection.MySQLConnection:
+    """Create and return a new MySQL connection using the above config."""
+    cfg = _get_db_config()
+    return mysql.connector.connect(
+        host=cfg["host"],
+        port=cfg["port"],
+        user=cfg["user"],
+        password=cfg["password"],
+        database=cfg["database"],
+        connection_timeout=3,
+    )
+
+
+def ping_database() -> Tuple[bool, Optional[str]]:
+    """Execute a trivial query to confirm connectivity and credentials.
+
+    Returns (ok, error_message_if_any).
+    """
+    try:
+        conn = get_connection()
+    except Error as exc:
+        return False, str(exc)
+    except Exception as exc:
+        return False, str(exc)
+
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        cur.fetchone()
+        cur.close()
+        return True, None
+    except Error as exc:
+        return False, str(exc)
+    except Exception as exc:
+        return False, str(exc)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+# Example helpers (commented):
+# def ensure_table_exists() -> None:
+#     """Create the `names` table if it does not already exist.
+#     Example includes an email column to store a second field.
+#     """
+#     conn = get_connection()
+#     try:
+#         cur = conn.cursor()
+#         cur.execute(
+#             """
+#             CREATE TABLE IF NOT EXISTS names (
+#                 id INT PRIMARY KEY AUTO_INCREMENT,
+#                 name VARCHAR(255) NOT NULL,
+#                 email VARCHAR(255) NOT NULL,
+#                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+#             )
+#             """
+#         )
+#         conn.commit()
+#         cur.close()
+#     finally:
+#         conn.close()
+#
+# def insert_name(name: str, email: str) -> Tuple[bool, Optional[str]]:
+#     """Insert a single row into `names` after ensuring the table exists.
+#     This example writes both name and email.
+#     """
+#     try:
+#         ensure_table_exists()
+#         conn = get_connection()
+#         cur = conn.cursor()
+#         cur.execute("INSERT INTO names (name, email) VALUES (%s, %s)", (name, email))
+#         conn.commit()
+#         cur.close()
+#         conn.close()
+#         return True, None
+#     except Error as exc:
+#         return False, str(exc)
+#     except Exception as exc:
+#         return False, str(exc)
+
+
+
+""",
+        "backend/run.py": """import os
+
+from app import create_app
+
+
+app = create_app()
+
+
+if __name__ == "__main__":
+    host = os.getenv("FLASK_RUN_HOST", "127.0.0.1")
+    port = int(os.getenv("FLASK_RUN_PORT", "5000"))
+    debug = os.getenv("FLASK_DEBUG", "1") == "1"
+    app.run(host=host, port=port, debug=debug)
+
+
+""",
+        "backend/requirements.txt": """Flask==3.0.3
+Flask-Cors==4.0.0
+python-dotenv==1.0.1
+mysql-connector-python==9.0.0
+waitress==3.0.2
+""",
+        # Frontend (Vite + React)
+        "frontend/index.html": """<!doctype html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\">
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
+  <title>CS-364-Project</title>
+  <link rel=\"stylesheet\" href=\"assets/css/style.css\">
+  
+</head>
+<body>
+    <div class=\"container\">
+      <h1>CS-364-Project</h1>
+      <div id=\"root\"></div>
+      <!--
+        Example form (commented):
+        <form id=\"example-form\">
+          <label for=\"example-name\">Name</label>
+          <input id=\"example-name\" name=\"name\" type=\"text\" placeholder=\"Your name\" required>
+
+          <label for=\"example-email\">Email</label>
+          <input id=\"example-email\" name=\"email\" type=\"email\" placeholder=\"you@example.com\" required>
+
+          <button type=\"submit\">Submit</button>
+        </form>
+        <div id=\"example-result\" aria-live=\"polite\"></div>
+
+        This pairs with the commented JS in assets/js/script.js
+        and the example backend route in backend/app/routes.py.
+      -->
+      
+    
+    <script type=\"module\" src=\"/src/main.jsx\"></script>
+
+
+    
+  
+</body>
+</html>
+
+""",
+        "frontend/src/App.jsx": """import { useEffect, useState } from 'react';
+
+export default function App() {
+  const [apiStatus, setApiStatus] = useState('checking...');
+  const [dbStatus, setDbStatus] = useState('checking...');
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then((r) => r.json())
+      .then((d) => setApiStatus(d.status || 'unknown'))
+      .catch(() => setApiStatus('unreachable'));
+
+    fetch('/api/db/ping')
+      .then((r) => r.json())
+      .then((d) => setDbStatus(d.status || 'unknown'))
+      .catch(() => setDbStatus('unreachable'));
+  }, []);
+
+  return (
+    <div>
+      <h2>Backend Status</h2>
+      <ul>
+        <li>API: {apiStatus}</li>
+        <li>Database: {dbStatus}</li>
+      </ul>
+    </div>
+  );
+}
+
+""",
+        "frontend/src/main.jsx": """import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App.jsx';
+
+const container = document.getElementById('root');
+const root = createRoot(container);
+root.render(<App />);
+
+
+""",
+        "frontend/vite.config.js": """import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+      },
+    },
+  },
+});
+
+
+""",
+        "frontend/package.json": """{
+  \"name\": \"cs-364-frontend\",
+  \"private\": true,
+  \"version\": \"0.0.1\",
+  \"type\": \"module\",
+  \"scripts\": {
+    \"dev\": \"vite\",
+    \"build\": \"vite build\",
+    \"preview\": \"vite preview --port 5173\"
+  },
+  \"dependencies\": {
+    \"react\": \"^18.3.1\",
+    \"react-dom\": \"^18.3.1\"
+  },
+  \"devDependencies\": {
+    \"@vitejs/plugin-react\": \"^4.3.1\",
+    \"vite\": \"^5.4.8\"
+  }
+}
+
+
+""",
+        "frontend/assets/css/style.css": """/* Minimal, device-friendly base styles */
+
+/* Box sizing reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Basic sensible defaults */
+html {
+  font-family: system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial;
+  font-size: 16px; /* base size; scales with browser settings */
+  -webkit-text-size-adjust: 100%;
+  line-height: 1.45;
+}
+
+body {
+  margin: 0;
+  padding: 1rem;
+  background-color: #ffffff;
+  color: #111;
+  min-height: 100vh;
+  display: block;
+}
+
+/* Make images responsive if later added */
+img,
+picture,
+video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Utility container that stays readable on any device */
+.container {
+  max-width: 90ch;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+
+""",
         # Repo files
-        ".gitignore": """# Python virtual environment\n.venv/\nvenv/\n\n# Byte-compiled / cache files\n__pycache__/\n*.py[cod]\n\n# Environment variables\n*.env\n""",
-        # Project TODO
-        "TODO.md": """## Project TODO\n\n**Environment**\n- [ ] Create `backend/.env` with:\n  - FLASK_RUN_HOST=`0.0.0.0`\n  - FLASK_RUN_PORT=`5000`\n  - FLASK_DEBUG=`0`\n  - FLASK_ENV=`production`\n  - DB_HOST=`<your-db-host>`\n  - DB_PORT=`3306`\n  - DB_USER=`<your-db-user>`\n  - DB_PASSWORD=`<your-db-password>`\n  - DB_NAME=`<your-database>`\n  - FRONTEND_ORIGIN=`<your-frontend-url>`  # e.g., `http://localhost:3000` for local dev\n\n- **Install & Run (backend)**\n  - [ ] `cd backend`\n  - [ ] Create venv: `python -m venv .venv`\n  - [ ] Activate venv: `.venv\\\\Scripts\\\\activate` (Windows)\n  - [ ] `pip install -r requirements.txt`\n  - [ ] `waitress-serve --listen=0.0.0.0:5000 run:app`\n\n- **Verify API**\n  - [ ] Root health: open `http://127.0.0.1:5000/` → expect `{ \"status\": \"ok\" }`\n  - [ ] API Health: open `http://127.0.0.1:5000/api/health` → expect `{ \"status\": \"ok\" }`\n  - [ ] DB Ping: open `http://127.0.0.1:5000/api/db/ping`\n    - Expect `{ \"status\": \"ok\" }` if credentials are valid\n    - Otherwise `{ \"status\": \"error\", \"error\": \"...\" }`\n\n- **Frontend**\n  - [ ] Open `frontend/index.html` in browser\n  - [ ] Confirm the page shows `Backend: ok`\n\n- **MySQL Checklist**\n  - [ ] Ensure MySQL server is running and accessible\n  - [ ] Confirm user/password and DB exist\n  - [ ] If needed, update `.env` with correct credentials\n\n- **Next (optional, later)**\n  - [ ] Add CRUD endpoints with MySQL queries\n  - [ ] Add simple UI form that calls new endpoints\n\n\n""",
+        ".gitignore": """# Python virtual environment
+.venv/
+venv/
+
+# Byte-compiled / cache files
+__pycache__/
+*.py[cod]
+
+# Environment variables
+*.env
+""",
+        # Project TODO (updated)
+        "TODO.md": """## Project TODO
+
+Environment
+- [ ] Create `backend/.env` with:
+  - FLASK_RUN_HOST=`0.0.0.0`
+  - FLASK_RUN_PORT=`5000`
+  - FLASK_DEBUG=`0`
+  - FLASK_ENV=`production`
+  - DB_HOST=`<your-db-host>`
+  - DB_PORT=`3306`
+  - DB_USER=`<your-db-user>`
+  - DB_PASSWORD=`<your-db-password>`
+  - DB_NAME=`<your-database>`
+  - FRONTEND_ORIGIN=`<your-frontend-url>`  # e.g., `http://127.0.0.1:5500` if using Live Server, or `*` for quick local tests
+
+- Install & Run (backend)
+  - [ ] `cd backend`
+  - [ ] Create venv: `python -m venv .venv`
+  - [ ] Activate venv: `.venv\\Scripts\\activate` (Windows)
+  - [ ] `pip install -r requirements.txt`
+  - [ ] `waitress-serve --listen=0.0.0.0:5000 run:app`
+
+- Verify API
+  - [ ] Root health: open `http://127.0.0.1:5000/` → expect `{ "status": "ok" }`
+  - [ ] API Health: open `http://127.0.0.1:5000/api/health` → expect `{ "status": "ok" }`
+  - [ ] DB Ping: open `http://127.0.0.1:5000/api/db/ping`
+    - Expect `{ "status": "ok" }` if credentials are valid
+    - Otherwise `{ "status": "error", "error": "..." }`
+
+- Frontend
+  - [ ] `cd frontend`
+  - [ ] Install Node deps: `npm install`
+  - [ ] Start dev server: `npm run dev` (serves on `http://127.0.0.1:5173`)
+  - [ ] Confirm the page shows API and Database status
+
+- MySQL Checklist
+  - [ ] Ensure MySQL server is running and accessible
+  - [ ] Confirm user/password and DB exist
+  - [ ] If needed, update `.env` with correct credentials
+
+Notes
+- Vite dev server proxies `/api/*` to Flask at `http://127.0.0.1:5000` per `frontend/vite.config.js`. Keep Flask running while using `npm run dev`.
+
+
+""",
+        # README (updated)
+        "README.md": """# Fullstack Website (Flask + MySQL + React via Vite)
+
+This project is a minimal full‑stack setup:
+- Backend: Python Flask API with MySQL Connector
+- Frontend: React (Vite dev server + proxy to Flask)
+
+## Prerequisites
+- Python 3.10+
+- Node.js 18+
+- MySQL server
+
+## Backend (Flask)
+1) Create and populate `backend/.env`:
+```
+FLASK_RUN_HOST=0.0.0.0
+FLASK_RUN_PORT=5000
+FLASK_DEBUG=0
+FLASK_ENV=production
+DB_HOST=<your-db-host>
+DB_PORT=3306
+DB_USER=<your-db-user>
+DB_PASSWORD=<your-db-password>
+DB_NAME=<your-database>
+# For production, set a specific origin. During local dev Vite uses http://127.0.0.1:5173
+FRONTEND_ORIGIN=http://127.0.0.1:5173
+```
+
+2) Install deps and run:
+```
+cd backend
+python -m venv .venv
+.venv\\Scripts\\activate   # Windows
+pip install -r requirements.txt
+python run.py
+# or: waitress-serve --listen=0.0.0.0:5000 run:app
+```
+
+3) Verify endpoints:
+- `GET http://127.0.0.1:5000/` → `{ "status": "ok" }`
+- `GET http://127.0.0.1:5000/api/health` → `{ "status": "ok" }`
+- `GET http://127.0.0.1:5000/api/db/ping` → `{ "status": "ok" }` if DB creds are valid
+
+## Frontend (Vite + React)
+1) Install and start dev server:
+```
+cd frontend
+npm install
+npm run dev
+```
+
+2) Open the printed URL (default `http://127.0.0.1:5173/`). The app shows API and DB status.
+
+Vite is configured to proxy `/api/*` to Flask at `http://127.0.0.1:5000` in `frontend/vite.config.js`.
+
+## Folder structure
+```
+backend/
+  app/
+    __init__.py        # Flask app factory + CORS
+    routes.py          # /api routes (health, db ping)
+    db.py              # MySQL connection + helpers
+  requirements.txt
+  run.py               # Dev server entry
+
+frontend/
+  src/
+    main.jsx           # React entry
+    App.jsx            # Example API/DB status component
+  vite.config.js       # Dev proxy to Flask
+  package.json         # deps + scripts
+  index.html           # Vite HTML entry
+  assets/css/style.css # basic styles
+
+TODO.md                # setup checklist
+```
+
+## Notes
+- For production, build the frontend (`npm run build`) and serve the static files with a web server. Adjust CORS and deployment according to your environment.
+- The backend uses environment variables (via `python-dotenv` in dev) to keep secrets out of source control.
+""",
     }
 
     for path, content in files.items():
