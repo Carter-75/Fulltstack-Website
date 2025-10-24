@@ -419,7 +419,7 @@ Environment
   - DB_PORT=`3306`
   - DB_USER=`<your-db-user>`
   - DB_PASSWORD=`<your-db-password>`
-  - DB NAME=`<your-database>`
+  - DB_NAME=`<your-database>`
   - FRONTEND_ORIGIN=`<your-frontend-url>`  # e.g., `http://127.0.0.1:5500` if using Live Server, or `*` for quick local tests
 
 - Install & Run (backend)
@@ -469,7 +469,7 @@ Quick start
 # Backend
 cd backend
 python -m venv .venv
-.venv\Scripts\activate   # Windows
+.venv\\Scripts\\activate   # Windows
 pip install -r requirements.txt
 python run.py
 
@@ -500,7 +500,7 @@ FRONTEND_ORIGIN=http://127.0.0.1:5173
 ```
 cd backend
 python -m venv .venv
-.venv\Scripts\activate   # Windows
+.venv\\Scripts\\activate   # Windows
 pip install -r requirements.txt
 python run.py
 # or: waitress-serve --listen=0.0.0.0:5000 run:app
